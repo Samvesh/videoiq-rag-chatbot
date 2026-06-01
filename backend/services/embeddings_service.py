@@ -1,13 +1,13 @@
-from sentence_transformers import SentenceTransformer
-from typing import List
+from typing import List, Any
 
 # ── Model cache ───────────────────────────────────────────────────────────────
-_model: SentenceTransformer = None
+_model: Any = None
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model() -> Any:
     global _model
     if _model is None:
+        from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer("BAAI/bge-small-en")
     return _model
 

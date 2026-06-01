@@ -1,14 +1,23 @@
 import os
-import chromadb
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Determine database persistence directory
-chroma_path = os.getenv("CHROMA_PATH", "./chroma_store")
+class LazyChromaClient:
+    def __init__(self):
+        self._real_client = None
 
-# Initialize persistent ChromaDB client
-client = chromadb.PersistentClient(path=chroma_path)
+    def _get_client(self):
+        if self._real_client is None:
+            import chromadb
+            chroma_path = os.getenv("CHROMA_PATH", "./chroma_store")
+            self._real_client = chromadb.PersistentClient(path=chroma_path)
+        return self._real_client
+
+    def __getattr__(self, name):
+        return getattr(self._get_client(), name)
+
+client = LazyChromaClient()
 
 def get_collection():
     """Fetches the existing collection or creates a new one if it doesn't exist."""
