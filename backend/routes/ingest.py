@@ -17,6 +17,16 @@ class IngestRequest(BaseModel):
 
 @router.post("/ingest", summary="Ingest YouTube/Instagram URLs and store chunks in Chroma")
 async def ingest(request: IngestRequest):
+    try:
+        return await _ingest_impl(request)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[Ingest] Unhandled error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Server error: {exc}")
+
+
+async def _ingest_impl(request: IngestRequest):
     if not request.youtube_url and not request.instagram_url:
         raise HTTPException(status_code=400, detail="At least one URL must be provided.")
 

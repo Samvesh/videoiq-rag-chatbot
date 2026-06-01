@@ -4,67 +4,83 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Gemini client cache ───────────────────────────────────────────────────────
-_genai = None
+# ── Lazy cached embedder instances (one per task_type) ────────────────────────
+_doc_embedder = None
+_query_embedder = None
 
 
-def _get_genai():
-    """Lazily import and configure google.generativeai."""
-    global _genai
-    if _genai is None:
-        import google.generativeai as genai
-
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        if api_key.startswith("GEMINI_API_KEY="):
-            api_key = api_key[len("GEMINI_API_KEY="):]
-        api_key = api_key.strip().strip('"').strip("'")
-
-        if not api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY is not set. Please set it in your environment variables."
-            )
-        genai.configure(api_key=api_key)
-        _genai = genai
-    return _genai
+def _get_api_key() -> str:
+    """Read and clean GEMINI_API_KEY from environment."""
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    for prefix in ("GEMINI_API_KEY=", "gemini_api_key="):
+        if api_key.lower().startswith(prefix.lower()):
+            api_key = api_key[len(prefix):]
+            break
+    return api_key.strip().strip('"').strip("'")
 
 
-# ── Core embed function ───────────────────────────────────────────────────────
+def _make_embedder(task_type: str):
+    """Create a GoogleGenerativeAIEmbeddings instance.
+
+    Uses langchain_google_genai which is already in requirements.txt and
+    correctly handles the Gemini API endpoint + model availability.
+
+    Model: models/embedding-001
+      - Available in BOTH v1 and v1beta API endpoints
+      - text-embedding-004 is only in v1 and fails on older SDK versions
+        that default to v1beta (google-generativeai < 0.7)
+    """
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+    api_key = _get_api_key()
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not set. "
+            "Add it in Render → Environment Variables."
+        )
+
+    return GoogleGenerativeAIEmbeddings(
+        model="models/embedding-001",
+        google_api_key=api_key,
+        task_type=task_type,
+    )
+
+
+# ── Core embed functions ──────────────────────────────────────────────────────
+
 def embed_texts(texts: List[str], task_type: str = "retrieval_document") -> List[List[float]]:
-    """Embed a list of texts using Gemini text-embedding-004.
+    """Embed a list of documents using Gemini embedding-001.
 
     Args:
-        texts: List of strings to embed.
-        task_type: One of 'retrieval_document' (for indexing) or
-                   'retrieval_query' (for querying). Defaults to document.
+        texts: Strings to embed.
+        task_type: 'retrieval_document' for indexing (default).
 
     Returns:
-        List of float vectors, one per input text.
+        List of float vectors.
     """
-    genai = _get_genai()
-    embeddings = []
-    for text in texts:
-        # Truncate to avoid API limits (Gemini allows ~2048 tokens)
-        truncated = text[:8000] if len(text) > 8000 else text
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=truncated,
-            task_type=task_type,
-        )
-        embeddings.append(result["embedding"])
-    return embeddings
+    global _doc_embedder
+    if _doc_embedder is None:
+        _doc_embedder = _make_embedder("retrieval_document")
+    return _doc_embedder.embed_documents(texts)
 
 
 def embed_query(text: str) -> List[float]:
-    """Embed a single query string with the correct task type."""
-    return embed_texts([text], task_type="retrieval_query")[0]
+    """Embed a single search query using Gemini embedding-001.
+
+    Uses task_type='retrieval_query' for better asymmetric retrieval quality.
+    """
+    global _query_embedder
+    if _query_embedder is None:
+        _query_embedder = _make_embedder("retrieval_query")
+    return _query_embedder.embed_query(text)
 
 
-# ── ChromaDB-compatible embedding function ────────────────────────────────────
+# ── ChromaDB / LangChain compatible embedding class ───────────────────────────
+
 class BGEEmbeddings:
-    """Implements ChromaDB's EmbeddingFunction interface using Gemini.
+    """ChromaDB EmbeddingFunction interface backed by Gemini embedding-001.
 
-    Named BGEEmbeddings for backward compat — internally uses Gemini API.
-    ChromaDB calls: embeddings = embedding_fn(input=["text1", "text2"])
+    Named BGEEmbeddings for backward compatibility with existing call sites.
     """
 
     def __call__(self, input: List[str]) -> List[List[float]]:  # noqa: A002
