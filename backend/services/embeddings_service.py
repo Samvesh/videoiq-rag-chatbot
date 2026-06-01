@@ -1,93 +1,87 @@
+"""
+Gemini embedding service using the REST API directly via httpx.
+
+Model confirmed from GET /v1beta/models?key=... (ListModels):
+  - models/gemini-embedding-001   ← embedContent supported ✓
+  - models/gemini-embedding-2     ← embedContent supported ✓
+  - models/embedding-001          ← does NOT exist for this key ✗
+  - models/text-embedding-004     ← does NOT exist for this key ✗
+
+Using httpx directly instead of the google-generativeai SDK to avoid
+API-version mismatches between SDK versions installed on Render.
+"""
+
 import os
+import httpx
 from typing import List
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Lazy cached embedder instances (one per task_type) ────────────────────────
-_doc_embedder = None
-_query_embedder = None
+# ── Confirmed model name from ListModels() ────────────────────────────────────
+_EMBED_MODEL = "gemini-embedding-001"
+_EMBED_URL = (
+    f"https://generativelanguage.googleapis.com/v1beta/models/{_EMBED_MODEL}:embedContent"
+)
+_MAX_CHARS = 6000  # well under the 2048-token limit
 
 
+# ── API key helper ────────────────────────────────────────────────────────────
 def _get_api_key() -> str:
-    """Read and clean GEMINI_API_KEY from environment."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    key = os.getenv("GEMINI_API_KEY", "").strip()
     for prefix in ("GEMINI_API_KEY=", "gemini_api_key="):
-        if api_key.lower().startswith(prefix.lower()):
-            api_key = api_key[len(prefix):]
+        if key.lower().startswith(prefix.lower()):
+            key = key[len(prefix):]
             break
-    return api_key.strip().strip('"').strip("'")
+    return key.strip().strip('"').strip("'")
 
 
-def _make_embedder(task_type: str):
-    """Create a GoogleGenerativeAIEmbeddings instance.
+# ── Single-text embed via REST ────────────────────────────────────────────────
+def _embed_one(text: str, api_key: str) -> List[float]:
+    """Call the embedContent REST endpoint for one piece of text."""
+    truncated = text[:_MAX_CHARS]
+    response = httpx.post(
+        _EMBED_URL,
+        params={"key": api_key},
+        json={"content": {"parts": [{"text": truncated}]}},
+        timeout=30.0,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Gemini embed failed [{response.status_code}]: {response.text[:300]}"
+        )
+    return response.json()["embedding"]["values"]
 
-    Uses langchain_google_genai which is already in requirements.txt and
-    correctly handles the Gemini API endpoint + model availability.
 
-    Model: models/embedding-001
-      - Available in BOTH v1 and v1beta API endpoints
-      - text-embedding-004 is only in v1 and fails on older SDK versions
-        that default to v1beta (google-generativeai < 0.7)
-    """
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
+# ── Public functions ──────────────────────────────────────────────────────────
+def embed_texts(texts: List[str], task_type: str = "retrieval_document") -> List[List[float]]:
+    """Embed a list of strings. task_type is accepted for API compat but ignored
+    because gemini-embedding-001 does not require it."""
     api_key = _get_api_key()
     if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. "
-            "Add it in Render → Environment Variables."
+            "GEMINI_API_KEY is not set. Add it in Render → Environment Variables."
         )
-
-    return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=api_key,
-        task_type=task_type,
-    )
-
-
-# ── Core embed functions ──────────────────────────────────────────────────────
-
-def embed_texts(texts: List[str], task_type: str = "retrieval_document") -> List[List[float]]:
-    """Embed a list of documents using Gemini embedding-001.
-
-    Args:
-        texts: Strings to embed.
-        task_type: 'retrieval_document' for indexing (default).
-
-    Returns:
-        List of float vectors.
-    """
-    global _doc_embedder
-    if _doc_embedder is None:
-        _doc_embedder = _make_embedder("retrieval_document")
-    return _doc_embedder.embed_documents(texts)
+    return [_embed_one(t, api_key) for t in texts]
 
 
 def embed_query(text: str) -> List[float]:
-    """Embed a single search query using Gemini embedding-001.
-
-    Uses task_type='retrieval_query' for better asymmetric retrieval quality.
-    """
-    global _query_embedder
-    if _query_embedder is None:
-        _query_embedder = _make_embedder("retrieval_query")
-    return _query_embedder.embed_query(text)
+    """Embed a single query string."""
+    return embed_texts([text])[0]
 
 
-# ── ChromaDB / LangChain compatible embedding class ───────────────────────────
-
+# ── ChromaDB / LangChain compatible class ─────────────────────────────────────
 class BGEEmbeddings:
-    """ChromaDB EmbeddingFunction interface backed by Gemini embedding-001.
+    """EmbeddingFunction interface backed by Gemini gemini-embedding-001 REST API.
 
-    Named BGEEmbeddings for backward compatibility with existing call sites.
+    Named BGEEmbeddings for backward compatibility with existing call-sites.
     """
 
     def __call__(self, input: List[str]) -> List[List[float]]:  # noqa: A002
-        return embed_texts(input, task_type="retrieval_document")
+        return embed_texts(input)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return embed_texts(texts, task_type="retrieval_document")
+        return embed_texts(texts)
 
     def embed_query(self, text: str) -> List[float]:
         return embed_query(text)
