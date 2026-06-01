@@ -12,9 +12,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
+raw_groq_key = os.getenv("GROQ_API_KEY", "")
+if raw_groq_key.startswith("GROQ_API_KEY="):
+    raw_groq_key = raw_groq_key[len("GROQ_API_KEY="):]
+elif raw_groq_key.startswith("groq_api_key="):
+    raw_groq_key = raw_groq_key[len("groq_api_key="):]
+raw_groq_key = raw_groq_key.strip().strip('"').strip("'")
+
 _llm = ChatGroq(
     model="llama-3.3-70b-versatile",
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key=raw_groq_key if raw_groq_key else None,
 )
 
 # ── Prompt ────────────────────────────────────────────────────────────────────

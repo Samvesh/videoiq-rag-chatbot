@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL || ''
+
 export default function ChatPanel() {
   const [sessionId] = useState(() => {
     if (typeof crypto.randomUUID === 'function') {
@@ -41,7 +43,7 @@ export default function ChatPanel() {
     setMessages((prev) => [...prev, assistantMsg])
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

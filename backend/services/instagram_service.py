@@ -162,7 +162,10 @@ def _download_and_transcribe(url: str) -> str:
 
 # ── Optional: Apify for richer metadata ──────────────────────────────────────
 async def _fetch_apify_metadata(url: str) -> dict:
-    token = os.getenv("APIFY_TOKEN", "")
+    token = os.getenv("APIFY_TOKEN", "").strip()
+    if token.startswith("APIFY_TOKEN="):
+        token = token[len("APIFY_TOKEN="):]
+    token = token.strip().strip('"').strip("'")
     if not token:
         return {}
     try:

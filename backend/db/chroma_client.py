@@ -10,7 +10,12 @@ class LazyChromaClient:
     def _get_client(self):
         if self._real_client is None:
             import chromadb
-            chroma_path = os.getenv("CHROMA_PATH", "./chroma_store")
+            chroma_path = os.getenv("CHROMA_PATH", "").strip()
+            if chroma_path.startswith("CHROMA_PATH="):
+                chroma_path = chroma_path[len("CHROMA_PATH="):]
+            chroma_path = chroma_path.strip().strip('"').strip("'")
+            if not chroma_path:
+                chroma_path = "./chroma_store"
             self._real_client = chromadb.PersistentClient(path=chroma_path)
         return self._real_client
 
