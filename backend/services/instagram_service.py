@@ -1,18 +1,11 @@
 import os
 import re
-import uuid
-import tempfile
 import asyncio
 import httpx
-import yt_dlp
 import instaloader
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# ── Temp dir for audio files ──────────────────────────────────────────────────
-_tmp_dir = os.path.join(tempfile.gettempdir(), "videoiq_audio")
-os.makedirs(_tmp_dir, exist_ok=True)
 
 # ── Instaloader context (reused across calls) ─────────────────────────────────
 _loader = instaloader.Instaloader(
@@ -26,31 +19,13 @@ _loader = instaloader.Instaloader(
     quiet=True,
 )
 
-# ── Whisper model cache ───────────────────────────────────────────────────────
-_whisper_model = None
-
-
-def _get_whisper():
-    global _whisper_model
-    if _whisper_model is None:
-        import whisper
-        _whisper_model = whisper.load_model("tiny")
-    return _whisper_model
-
 
 # ── Shortcode extraction ──────────────────────────────────────────────────────
 def _extract_shortcode(url: str) -> str:
-    """
-    Extracts the shortcode from Instagram Reel / Post URLs.
-    Handles formats:
-      https://www.instagram.com/reel/ABC123/
-      https://www.instagram.com/p/ABC123/
-      https://instagram.com/reel/ABC123/?igshid=...
-    """
+    """Extract the shortcode from Instagram Reel / Post URLs."""
     match = re.search(r"instagram\.com/(?:reel|p|tv)/([A-Za-z0-9_-]+)", url)
     if match:
         return match.group(1)
-    # Fallback: last path segment
     return url.rstrip("/").split("/")[-1]
 
 
@@ -67,97 +42,28 @@ def _fetch_instaloader_metadata(url: str) -> dict:
         except Exception:
             pass
 
-        description = post.caption or ""
-        hashtags = re.findall(r"#(\w+)", description)
+        caption = post.caption or ""
+        hashtags = re.findall(r"#(\w+)", caption)
 
         return {
             "title":                   f"Instagram Reel by @{post.owner_username}",
             "view_count":              int(post.video_view_count or 0),
             "like_count":              int(post.likes or 0),
             "comment_count":           int(post.comments or 0),
-            "duration":                0,                        # not exposed by instaloader
+            "duration":                0,
             "upload_date":             post.date.strftime("%Y%m%d") if post.date else "",
             "channel":                 post.owner_username,
             "channel_follower_count":  int(followers),
             "tags":                    hashtags,
             "video_id":                shortcode,
             "url":                     url,
+            "caption":                 caption,
             "apify_failed":            False,
             "source":                  "instaloader",
         }
     except Exception as e:
         print(f"[Instagram] instaloader failed for {url}: {e}")
         return {}
-
-
-# ── Audio download + Whisper transcription ────────────────────────────────────
-def _download_and_transcribe(url: str) -> str:
-    """
-    Try to download audio via yt-dlp using Chrome browser cookies.
-    Falls back gracefully with an informative message if auth is needed.
-    """
-    file_id = str(uuid.uuid4())
-    out_template = os.path.join(_tmp_dir, f"{file_id}.%(ext)s")
-
-    cookies_file = os.getenv("INSTAGRAM_COOKIES_FILE", "")
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "format": "bestaudio/best",
-        "outtmpl": out_template,
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "128",
-        }],
-    }
-
-    # Use exported cookie file if provided, otherwise try Chrome session
-    if cookies_file and os.path.exists(cookies_file):
-        ydl_opts["cookiefile"] = cookies_file
-    else:
-        ydl_opts["cookiesfrombrowser"] = ("chrome",)
-
-    downloaded_path = None
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(url, download=True)
-
-        # Locate downloaded file
-        mp3_path = os.path.join(_tmp_dir, f"{file_id}.mp3")
-        if os.path.exists(mp3_path):
-            downloaded_path = mp3_path
-        else:
-            for fname in os.listdir(_tmp_dir):
-                if fname.startswith(file_id):
-                    downloaded_path = os.path.join(_tmp_dir, fname)
-                    break
-
-        if not downloaded_path:
-            raise FileNotFoundError("Audio file not created after download.")
-
-        model = _get_whisper()
-        result = model.transcribe(downloaded_path)
-        transcript = (result.get("text") or "").strip()
-        return transcript if transcript else "Audio transcription returned empty text."
-
-    except Exception as e:
-        err = str(e).lower()
-        print(f"[Instagram] audio transcription failed: {e}")
-        if any(k in err for k in ("login", "cookie", "auth", "empty media", "private")):
-            return (
-                "Instagram audio transcription requires authentication. "
-                "Log into Instagram in Chrome and retry — the app reads your Chrome session automatically. "
-                "Alternatively, export cookies to a Netscape file and set INSTAGRAM_COOKIES_FILE in backend/.env."
-            )
-        return "Instagram Reel audio could not be transcribed. Ensure the Reel is public."
-    finally:
-        if downloaded_path and os.path.exists(downloaded_path):
-            try:
-                os.remove(downloaded_path)
-            except Exception:
-                pass
 
 
 # ── Optional: Apify for richer metadata ──────────────────────────────────────
@@ -180,6 +86,7 @@ async def _fetch_apify_metadata(url: str) -> dict:
             if items:
                 item = items[0]
                 owner = item.get("ownerUser") or {}
+                caption = item.get("caption") or item.get("text") or ""
                 return {
                     "title":                   f"Instagram Reel by {item.get('ownerFullName') or owner.get('username') or 'Creator'}",
                     "view_count":              int(item.get("videoPlayCount") or 0),
@@ -192,6 +99,7 @@ async def _fetch_apify_metadata(url: str) -> dict:
                     "tags":                    item.get("hashtags") or [],
                     "video_id":                _extract_shortcode(url),
                     "url":                     url,
+                    "caption":                 caption,
                     "apify_failed":            False,
                     "source":                  "apify",
                 }
@@ -202,33 +110,29 @@ async def _fetch_apify_metadata(url: str) -> dict:
 
 # ── Public entry point ────────────────────────────────────────────────────────
 async def get_instagram_data(url: str) -> dict:
-    """
-    Fetch Instagram Reel metadata + transcript.
+    """Fetch Instagram Reel metadata and use caption as text transcript.
 
-    Priority order for metadata:
-      1. Apify (if APIFY_TOKEN set) — richest data
-      2. instaloader — works for public Reels without login ✅
+    Priority for metadata:
+      1. Apify (if APIFY_TOKEN is set) — richest data including caption
+      2. instaloader — works for public Reels without login
       3. Graceful zeros fallback
 
-    Transcript:
-      yt-dlp with Chrome browser cookies → Whisper tiny
+    Transcript strategy (cloud-safe — no audio download required):
+      Uses the Reel caption / description as the primary text content.
+      This works reliably on any platform without ffmpeg or browser cookies.
     """
     loop = asyncio.get_event_loop()
 
-    # Run metadata fetch and audio transcription concurrently
-    apify_task = _fetch_apify_metadata(url)
-    transcript_task = loop.run_in_executor(None, _download_and_transcribe, url)
+    # Fetch Apify metadata (async)
+    apify_meta = await _fetch_apify_metadata(url)
 
-    apify_meta, transcript = await asyncio.gather(apify_task, transcript_task)
-
-    # Pick best metadata source
     if apify_meta:
         metadata = apify_meta
     else:
-        # instaloader runs in thread pool (it's sync)
+        # instaloader is synchronous — run in thread pool
         metadata = await loop.run_in_executor(None, _fetch_instaloader_metadata, url)
 
-    # Full fallback if both fail
+    # Full fallback if both sources fail
     if not metadata:
         shortcode = _extract_shortcode(url)
         metadata = {
@@ -243,9 +147,25 @@ async def get_instagram_data(url: str) -> dict:
             "tags":                    [],
             "video_id":                shortcode,
             "url":                     url,
+            "caption":                 "",
             "apify_failed":            True,
             "source":                  "fallback",
         }
+
+    # Build transcript from caption (reliable on all platforms)
+    caption = metadata.get("caption") or ""
+    title = metadata.get("title") or "Instagram Reel"
+    hashtags = metadata.get("tags") or []
+
+    if caption:
+        transcript = f"Title: {title}\n\nCaption: {caption}"
+    else:
+        transcript = f"Title: {title}"
+
+    if hashtags:
+        transcript += f"\n\nHashtags: {' '.join(['#' + t for t in hashtags[:20]])}"
+
+    print(f"[Instagram] Transcript built from caption. Length: {len(transcript)}")
 
     # Compute engagement rate
     views = metadata.get("view_count", 0)

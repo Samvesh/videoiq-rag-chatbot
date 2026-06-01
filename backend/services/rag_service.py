@@ -1,46 +1,62 @@
 import os
 from typing import List, Dict, Any, Generator
 
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
-from services.embeddings_service import BGEEmbeddings, embed_texts
+from services.embeddings_service import BGEEmbeddings, embed_texts, embed_query
 from db.chroma_client import client as chroma_client
 
 from dotenv import load_dotenv
 load_dotenv()
 
-# ── LLM ──────────────────────────────────────────────────────────────────────
-raw_groq_key = os.getenv("GROQ_API_KEY", "")
-if raw_groq_key.startswith("GROQ_API_KEY="):
-    raw_groq_key = raw_groq_key[len("GROQ_API_KEY="):]
-elif raw_groq_key.startswith("groq_api_key="):
-    raw_groq_key = raw_groq_key[len("groq_api_key="):]
-raw_groq_key = raw_groq_key.strip().strip('"').strip("'")
+# ── LLM (lazy — not initialised at import time to keep startup fast) ──────────
+_llm = None
+_PROMPT = None
 
-_llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    api_key=raw_groq_key if raw_groq_key else None,
-)
 
-# ── Prompt ────────────────────────────────────────────────────────────────────
-_SYSTEM = (
-    "You are VideoIQ, a friendly and insightful video performance analyst. "
-    "You help creators understand why their videos perform the way they do. "
-    "Answer questions in a warm, conversational tone — like a knowledgeable friend explaining things. "
-    "Use the provided context to answer, but NEVER expose raw IDs, source_ids, or technical database identifiers to the user. "
-    "Instead, refer to videos by their title or as 'Video A (YouTube)' and 'Video B (Instagram)'. "
-    "When comparing metrics, use natural language like 'about 3.4 million views' instead of '3400000'. "
-    "Format numbers in a human-friendly way (e.g., '224K likes', '1.3M views', '7% engagement rate'). "
-    "Use short paragraphs and bullet points when comparing multiple aspects. "
-    "Keep your answer helpful, clear, and easy to understand — avoid sounding robotic or overly technical."
-)
+def _get_llm():
+    """Return a cached ChatGroq instance; build it on first use."""
+    global _llm
+    if _llm is None:
+        from langchain_groq import ChatGroq
 
-_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", _SYSTEM),
-    ("human", "Context:\n{context}\n\nQuestion: {question}"),
-])
+        raw_key = os.getenv("GROQ_API_KEY", "")
+        # Strip any accidental "GROQ_API_KEY=…" value prefix
+        for prefix in ("GROQ_API_KEY=", "groq_api_key="):
+            if raw_key.startswith(prefix):
+                raw_key = raw_key[len(prefix):]
+                break
+        raw_key = raw_key.strip().strip('"').strip("'")
+
+        _llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            api_key=raw_key if raw_key else None,
+        )
+    return _llm
+
+
+def _get_prompt():
+    """Return a cached ChatPromptTemplate; build it on first use."""
+    global _PROMPT
+    if _PROMPT is None:
+        _SYSTEM = (
+            "You are VideoIQ, a friendly and insightful video performance analyst. "
+            "You help creators understand why their videos perform the way they do. "
+            "Answer questions in a warm, conversational tone — like a knowledgeable friend explaining things. "
+            "Use the provided context to answer, but NEVER expose raw IDs, source_ids, or technical database identifiers to the user. "
+            "Instead, refer to videos by their title or as 'Video A (YouTube)' and 'Video B (Instagram)'. "
+            "When comparing metrics, use natural language like 'about 3.4 million views' instead of '3400000'. "
+            "Format numbers in a human-friendly way (e.g., '224K likes', '1.3M views', '7% engagement rate'). "
+            "Use short paragraphs and bullet points when comparing multiple aspects. "
+            "Keep your answer helpful, clear, and easy to understand — avoid sounding robotic or overly technical."
+        )
+        _PROMPT = ChatPromptTemplate.from_messages([
+            ("system", _SYSTEM),
+            ("human", "Context:\n{context}\n\nQuestion: {question}"),
+        ])
+    return _PROMPT
+
 
 # ── Collection helper ─────────────────────────────────────────────────────────
 _COLLECTION_NAME = "videoiq_chunks"
@@ -65,29 +81,27 @@ def _retrieve(query: str, k: int = 6) -> List[Document]:
     # Get all unique source_ids present in the DB
     all_data = collection.get(include=["metadatas"])
     metadatas = all_data.get("metadatas") or []
-    
+
     unique_sources = set()
     for meta in metadatas:
         if meta and "source_id" in meta:
             unique_sources.add(meta["source_id"])
-            
-    # Embed query with BGE
-    query_embedding = embed_texts([query])[0]
-    
+
+    # Embed query with correct retrieval_query task type
+    query_embedding = embed_query(query)
+
     docs = []
     if unique_sources:
         # Determine number of chunks to fetch per source to keep total around k
         k_per_source = max(1, k // len(unique_sources))
-        
+
         for source_id in sorted(unique_sources):
-            # Query ChromaDB specifically for this video/source
             results = collection.query(
                 query_embeddings=[query_embedding],
                 n_results=k_per_source,
                 where={"source_id": source_id},
                 include=["documents", "metadatas"],
             )
-            
             if results and results.get("documents") and results["documents"][0]:
                 for text, meta in zip(results["documents"][0], results["metadatas"][0]):
                     docs.append(Document(page_content=text, metadata=meta))
@@ -100,7 +114,7 @@ def _retrieve(query: str, k: int = 6) -> List[Document]:
         )
         for text, meta in zip(results["documents"][0], results["metadatas"][0]):
             docs.append(Document(page_content=text, metadata=meta))
-            
+
     return docs
 
 
@@ -141,8 +155,7 @@ def answer_question(query: str, session_id: str = "default") -> Generator[str, N
     docs = _retrieve(query)
     context = _format_context(docs)
 
-    # Build input dict and stream through prompt → LLM
-    chain = _PROMPT | _llm
+    chain = _get_prompt() | _get_llm()
     for chunk in chain.stream({"context": context, "question": query}):
         token = getattr(chunk, "content", "")
         if token:
@@ -150,7 +163,7 @@ def answer_question(query: str, session_id: str = "default") -> Generator[str, N
 
 
 def answer_question_generator(query: str, session_id: str = "default") -> Generator[dict, None, None]:
-    """Retrieve context, build prompt, stream LLM tokens as dictionaries with sources."""
+    """Retrieve context, build prompt, stream LLM tokens as dicts with sources."""
     docs = _retrieve(query)
     context = _format_context(docs)
 
@@ -161,11 +174,10 @@ def answer_question_generator(query: str, session_id: str = "default") -> Genera
         sources.append({
             "video_id": video_id,
             "chunk_index": idx + 1,
-            "text_preview": doc.page_content[:200]
+            "text_preview": doc.page_content[:200],
         })
 
-    # Build input dict and stream through prompt → LLM
-    chain = _PROMPT | _llm
+    chain = _get_prompt() | _get_llm()
     first = True
     for chunk in chain.stream({"context": context, "question": query}):
         token = getattr(chunk, "content", "")
@@ -177,16 +189,13 @@ def answer_question_generator(query: str, session_id: str = "default") -> Genera
             yield payload
 
 
-
 def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
-    """Splits a string into overlapping chunks of approximately chunk_size characters,
-    trying not to split words.
-    """
+    """Splits a string into overlapping chunks of approximately chunk_size characters."""
     if not text:
         return []
     if len(text) <= chunk_size:
         return [text]
-        
+
     chunks = []
     start = 0
     while start < len(text):
@@ -194,72 +203,67 @@ def chunk_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> L
         if end >= len(text):
             chunks.append(text[start:])
             break
-            
+
         space_idx = text.rfind(" ", start, end)
         if space_idx != -1 and space_idx > start + (chunk_size // 2):
             end = space_idx
-            
+
         chunks.append(text[start:end].strip())
         start = end - chunk_overlap
-        
+
         if start >= end:
             start = end
-            
+
     return [c for c in chunks if c]
 
 
 def upsert_documents(docs: List[Dict[str, Any]]) -> None:
-    """Insert or overwrite chunked documents in ChromaDB using BGE embeddings."""
+    """Insert or overwrite chunked documents in ChromaDB using Gemini embeddings."""
     if not docs:
         return
 
     collection = _get_collection()
-    
+
     chunked_ids = []
     chunked_texts = []
     chunked_metadatas = []
-    
+
     for doc in docs:
         source_id = str(doc["source_id"])
         content = doc.get("content") or ""
         metadata = doc.get("metadata") or {}
-        
+
         platform = metadata.get("source_platform", "")
         is_video_a = (platform == "youtube")
-        
-        # Log/print what text is being passed for video_id 'A'
+
         if is_video_a:
-            print(f"[RAG] upsert_documents - Video A (YouTube) transcript content to upsert. Length: {len(content)}, Preview: {content[:200]}")
-            
-        # Delete existing chunks for this source_id first to avoid orphaned chunks
+            print(f"[RAG] Video A (YouTube) transcript length: {len(content)}, preview: {content[:200]}")
+
+        # Delete existing chunks for this source to avoid orphaned data
         try:
             collection.delete(where={"source_id": source_id})
             print(f"[RAG] Deleted existing chunks for source_id: {source_id}")
         except Exception as e:
             print(f"[RAG] Warning: Failed to delete old chunks for {source_id}: {e}")
-            
+
         chunks = chunk_text(content)
         if not chunks:
             chunks = [""]
-            
+
         for i, chunk in enumerate(chunks):
             chunked_ids.append(f"{source_id}_chunk_{i}")
             chunked_texts.append(chunk)
-            
+
             chunk_meta = metadata.copy()
             chunk_meta["chunk_index"] = i
             chunked_metadatas.append(chunk_meta)
-            
-            if is_video_a:
-                print(f"[RAG] Video A chunk {i} length: {len(chunk)}, Preview: {chunk[:100]}")
 
     if not chunked_texts:
         return
 
-    # Pre-compute embeddings for all chunks
-    embeddings = embed_texts(chunked_texts)
+    # Pre-compute Gemini embeddings for all chunks
+    embeddings = embed_texts(chunked_texts, task_type="retrieval_document")
 
-    # Upsert chunks into ChromaDB
     collection.upsert(
         ids=chunked_ids,
         documents=chunked_texts,
