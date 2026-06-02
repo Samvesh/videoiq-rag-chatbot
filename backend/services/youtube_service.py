@@ -22,6 +22,15 @@ _GEMINI_VIDEO_MODEL = "gemini-2.0-flash"   # confirmed available; supports YouTu
 
 
 # ── Key helpers ───────────────────────────────────────────────────────────────
+def _preview_response_body(resp: httpx.Response, limit: int = 1200) -> str:
+    """Return a compact response preview without leaking request secrets."""
+    key = resp.request.url.params.get("key", "")
+    text = resp.text
+    if key:
+        text = text.replace(key, "[redacted]")
+    return text[:limit]
+
+
 def _clean_key(env_var: str) -> str:
     key = os.getenv(env_var, "").strip()
     prefix = f"{env_var}="
@@ -54,12 +63,13 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
     """
     api_key = _clean_key("YOUTUBE_API_KEY")
     if not api_key:
-        print("[YouTube Service] YOUTUBE_API_KEY not set — skipping YouTube API metadata.")
+        print("[YouTube API] YOUTUBE_API_KEY not set; YouTube Data API v3 metadata call skipped.")
         return {}
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
             # Video snippet + statistics + contentDetails
+            print(f"[YouTube API] Fetching videos metadata for video_id={video_id}")
             resp = await client.get(
                 f"{_YT_API_BASE}/videos",
                 params={
@@ -68,8 +78,11 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
                     "key": api_key,
                 },
             )
+            print(
+                f"[YouTube API] Raw videos response status={resp.status_code} "
+                f"body={_preview_response_body(resp)}"
+            )
             if resp.status_code != 200:
-                print(f"[YouTube API] videos endpoint → {resp.status_code}: {resp.text[:200]}")
                 return {}
 
             items = resp.json().get("items", [])
@@ -90,14 +103,22 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
                     f"{_YT_API_BASE}/channels",
                     params={"id": channel_id, "part": "statistics", "key": api_key},
                 )
+                print(
+                    f"[YouTube API] Raw channels response status={ch_resp.status_code} "
+                    f"channel_id={channel_id} body={_preview_response_body(ch_resp)}"
+                )
                 if ch_resp.status_code == 200:
                     ch_items = ch_resp.json().get("items", [])
                     if ch_items:
                         subscribers = int(
                             ch_items[0].get("statistics", {}).get("subscriberCount", 0)
                         )
+                    else:
+                        print(f"[YouTube API] No channel statistics found for channel_id={channel_id}")
+                else:
+                    print(f"[YouTube API] Channel statistics fetch failed for channel_id={channel_id}")
 
-            return {
+            metadata = {
                 "title":                    snippet.get("title") or "YouTube Video",
                 "description":              snippet.get("description") or "",
                 "view_count":               int(stats.get("viewCount") or 0),
@@ -112,6 +133,14 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
                 "url":                      f"https://www.youtube.com/watch?v={video_id}",
                 "source":                   "youtube_api_v3",
             }
+            print(
+                "[YouTube API] Parsed metadata "
+                f"source={metadata['source']} title={metadata['title']!r} "
+                f"channel={metadata['channel']!r} views={metadata['view_count']} "
+                f"likes={metadata['like_count']} comments={metadata['comment_count']} "
+                f"duration={metadata['duration']}"
+            )
+            return metadata
 
         except Exception as exc:
             print(f"[YouTube API] Exception: {exc}")
@@ -227,6 +256,10 @@ async def get_youtube_data(url: str) -> dict:
             "url":                      url,
             "source":                   "fallback",
         }
+        print(
+            "[YouTube API] Metadata fallback stub created "
+            f"for video_id={video_id}; channel='Unknown Channel', metrics=0, duration=0."
+        )
 
     # ── Transcript (Layers 2 → 3 → 4) ────────────────────────────────────────
     loop = asyncio.get_event_loop()

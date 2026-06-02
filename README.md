@@ -123,6 +123,7 @@ This tool acts as your personal video optimization partner. Rather than jumping 
 | Variable | Description | Required / Optional | Default |
 |---|---|---|---|
 | `GEMINI_API_KEY` | Google Gemini API Key used to access the `gemini-1.5-flash` model. | **Required** for Chat | None |
+| `YOUTUBE_API_KEY` | Google API key with YouTube Data API v3 enabled. Used for YouTube title, channel, views, likes, comments, duration, and upload date. | **Required** for YouTube metrics | None |
 | `APIFY_TOKEN` | Apify Token used to run the `apify~instagram-reel-scraper` actor. | *Optional* (Fallback to 0 metrics if empty) | None |
 | `CLIENT_URL` | The production URL of the React client (used for setting up strict CORS bounds). | Optional | `http://localhost:5173` |
 | `CHROMA_PATH` | Path where local ChromaDB embeddings are saved persistently. | Optional | `./chroma_store` |
@@ -146,6 +147,7 @@ This tool acts as your personal video optimization partner. Rather than jumping 
    - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
 4. Add the following **Environment Variables** in Render's dashboard settings:
    - `GEMINI_API_KEY` = `[your_gemini_api_key]`
+   - `YOUTUBE_API_KEY` = `[your_google_api_key_with_youtube_data_api_v3_enabled]`
    - `APIFY_TOKEN` = `[your_apify_token]`
    - `CLIENT_URL` = `https://[your-frontend-app].vercel.app`
    - `CHROMA_PATH` = `/opt/render/project/src/chroma_store` (or create a persistent disk mount for persistent storage).

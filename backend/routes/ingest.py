@@ -62,6 +62,12 @@ async def _ingest_impl(request: IngestRequest):
 
         if key == "youtube":
             print(f"[Ingest] get_youtube_data() returned transcript. Length: {len(content)}, Preview: {content[:200]}")
+            print(
+                "[Ingest] YouTube metadata summary "
+                f"source={res.get('source')} channel={res.get('channel')!r} "
+                f"views={res.get('view_count')} likes={res.get('like_count')} "
+                f"comments={res.get('comment_count')} duration={res.get('duration')}"
+            )
 
         # Build flat metadata — ChromaDB only accepts str/int/float/bool values
         metadata = {
