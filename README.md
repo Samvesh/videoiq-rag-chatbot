@@ -1,6 +1,6 @@
 VideoIQ 
 
-VideoIQ is a production-grade, and deployed RAG chatbot (Retrieval-Augmented Generation) dashboard that enables content creators, marketers, and analysts to perform side-by-side performance audits of a YouTube URL (Video A) and an Instagram Reel URL (Video B). By feeding both links into the application, VideoIQ concurrently scrapes video metadata (views, likes, comments, duration, upload date, followers), retrieves or transcribes speech data via standard APIs and local OpenAI Whisper and indexes text segments into a local persistent ChromaDB vector store, and provides a real-time, streaming AI chat interface backed by Google's Gemini 1.5 Flash.
+VideoIQ is a production-grade, and deployed RAG chatbot (Retrieval-Augmented Generation) dashboard that enables content creators, marketers, and analysts to perform side-by-side performance audits of a YouTube URL (Video A) and an Instagram Reel URL (Video B). By feeding both links into the application, VideoIQ concurrently scrapes video metadata (views, likes, comments, duration, upload date, followers), retrieves or transcribes speech data via standard APIs indexes text segments into a local persistent ChromaDB vector store, and provides a real-time, streaming AI chat interface backed by Google's Gemini 1.5 Flash.
 
 This tool acts as our personal video optimization partne instead of jumping between platforms, we can instantly compare the engagement stats and ask and see and analyse complex comparative questions like , "Compare the hook structures of both videos in the first 5 seconds,",  "Why did Video B get a higher engagement rate despite fewer views?" or "What optimization suggestions do you have for Video A's transcript?",  VideoIQ isolates sessions dynamically, cites its claims with context-chunk indexes, and streams responses with zero lag out-of-the-box. There are few most common question added to the chatbot Ui so it'll be easy to ask them quickly instead of just typing them.
 
@@ -19,16 +19,16 @@ Architecture Diagram
    +------------------+-----------------------+---------------------+
    |                      FastAPI Backend                           |
    |                       Port 8000                                |
-   +--------+------------------+-----------------------+------------+
-            |                  |                       |
-            | yt-dlp           | HTTP Request          | local audio extraction
-            v                  v                       v
-     +------+------+   +-------+-------+       +-------+-------+
-     |   YouTube   |   |   Apify API   |       | OpenAI Whisper|
-     | Transcript  |   | (Instagram)   |       |    (tiny)     |
-     +------+------+   +-------+-------+       +-------+-------+
-            |                  |                       |
-            +------------------+-----------------------+
+   +--------+----------------------------------------+--------------+
+            |                                        |                       
+            |YouTube Data API v3                     | HTTP Request          
+            v                                        v                       
+     +------+------+                         +-------+-------+       
+     |   YouTube   |                         |   Apify API   |       
+     |Transcript api|                        | (Instagram)   |       
+     +------+------+                         +-------+-------+       
+            |                                        |                       
+            +------------------+---------------------+
                                |
                                v Text segments chunking
                  +-------------+-------------+
@@ -61,7 +61,7 @@ Setup & Local Installation
  Prerequisites
 1. Python 3.10+ installed.
 2. Node.js v18+ and npm installed.
-3. ffmpeg installed on your system PATH (required for local audio conversion and OpenAI Whisper transcription).
+3. ffmpeg installed on our system PATH .
 
 ---
 
@@ -110,11 +110,11 @@ Setup & Local Installation
    ```bash
    npm run dev
    ```
-5. Open your browser and go to `http://localhost:5173`
+5. Open the browser and go to `http://localhost:5173` (maybe differnt if that port is busy or used by another source)
 
 ---
 
- Environment Variables Explained
+ Environment Variables Explaination
 
  Backend (`backend/.env`)
 
@@ -188,10 +188,10 @@ For an average turn of 5 turns per creator, representing 4,000 input tokens (inc
   - Output: $0.60 / 1M tokens → $1.50 / day
   - otal: $4.50 / day
 - Decision: Gemini 1.5 Flash offers great value and native speed for large incoming context windows.
+- Estimated daily Gemini cost remains low because RAG only sends relevant chunks instead of full transcripts.
 
 4. Scale Bottlenecks at 10,000+ daily users & Solutions
-- Whisper CPU Satiation: transcribing 10k Reels simultaneously on a single CPU instance will cause server locks.
-  - Solution: Offload local audio downloads and Whisper transcribing it to a queuing server (Celery/Redis) backed by isolated, GPU-powered worker pools or utilize an external API (like AssemblyAI or Deepgram).
+  - Solution: Offload local audio downloads transcribing it to a queuing server (Celery/Redis) backed by isolated, GPU-powered worker pools or utilize an external API (like AssemblyAI or Deepgram).
 - Apify Rate Limits Scraping 10k Instagram pages directly using standard tokens will cause concurrency blocks.
   - Solution: Set up dedicated proxy networks, configure Apify client pools, or use specialized scraping APIs with high concurrency rates.
 - Chroma Lockups: Running multi-thread writes on the same persistent SQLite database causes file blocks.
@@ -208,7 +208,7 @@ For an average turn of 5 turns per creator, representing 4,000 input tokens (inc
 
 Limitations
 1. Transcripts Requirement: VideoIQ depends on YouTube having auto-generated or manual captions available. If disabled, a placeholder transcript is created.
-2. FFmpeg dependency: If ffmpeg is missing on your host machine's PATH, local Whisper audio transcription for Instagram Reels will fail, leaving an empty transcription warning.
+2. FFmpeg dependency: If ffmpeg is missing on your host machine's PATH, local audio transcription for Instagram Reels will fail, leaving an empty transcription warning.
 3. Scraper dependency: Instagram Reels metadata is scraped using Apify's actor. If Apify updates its selectors or you run out of credits, metadata counters default to 0, though transcription remains fully active.
 
 Challenges Faced During Development
@@ -250,3 +250,11 @@ A large amount of time was spent debugging differences between local development
 Many issues only appeared after deploying to Vercel and Render, so detailed logging was added throughout the application to make troubleshooting easier.
 
 What I Learned: This project taught me that building the feature is only half of the work. The harder part is making it reliable in production, handling API limitations, dealing with deployment issues, and creating proper fallback systems when external services fail.
+
+Future Improvements(not the project requirments but it can be done if needed or asked to do so)
+- Dedicated transcript ingestion service
+- Queue-based processing using Celery + Redis
+- Qdrant migration for large-scale vector storage
+- Multi-user session management
+- Caching layer for repeated video analysis
+- Advanced analytics dashboards
