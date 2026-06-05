@@ -35,10 +35,54 @@ def _extract_shortcode(url: str) -> str:
     return url.rstrip("/").split("/")[-1]
 
 
-# ── Layer 1: Apify instagram-reel-scraper (primary) ──────────────────────────
+# ── Helper: fetch profile details (follower count) ───────────────────────────
+async def _fetch_apify_profile_followers(username: str, token: str) -> int:
+    """
+    Make a second Apify call with resultsType='details' on the profile URL
+    to retrieve the followersCount that is absent from post/reel responses.
+    """
+    if not username:
+        return 0
+    profile_url = f"https://www.instagram.com/{username}/"
+    print(f"[Instagram Apify] Fetching profile details for @{username}")
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"{_APIFY_BASE}/acts/{_APIFY_ACTOR}/run-sync-get-dataset-items",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "directUrls": [profile_url],
+                    "resultsType": "details",
+                    "resultsLimit": 1,
+                },
+            )
+        if resp.status_code in (200, 201):
+            items = resp.json()
+            if items and isinstance(items, list):
+                profile = items[0]
+                import json as _json
+                print(f"[Instagram Apify] Profile RAW KEYS: {list(profile.keys())}")
+                print(f"[Instagram Apify] Profile RAW: {_json.dumps(profile, default=str)[:800]}")
+                followers = int(
+                    profile.get("followersCount")
+                    or profile.get("followers")
+                    or (profile.get("edge_followed_by") or {}).get("count", 0)
+                    or 0
+                )
+                print(f"[Instagram Apify] Profile followers for @{username}: {followers}")
+                return followers
+        print(f"[Instagram Apify] Profile details call failed: status={resp.status_code}")
+    except Exception as exc:
+        print(f"[Instagram Apify] Profile details exception: {exc}")
+    return 0
+
+
+# ── Layer 1: Apify instagram-scraper (primary) ────────────────────────────────
 async def _fetch_apify_metadata(url: str) -> dict:
     """
-    Use Apify's apify/instagram-reel-scraper actor to fetch Reel metadata.
+    Use Apify's apify/instagram-scraper actor to fetch Reel metadata.
+    Follower count is fetched via a second profile-details call because
+    the post response does not include it.
     Cloud-safe: Apify uses residential proxies — no IP blocking on Render.
     """
     token = _clean_key("APIFY_TOKEN")
@@ -104,21 +148,16 @@ async def _fetch_apify_metadata(url: str) -> dict:
             or ""
         )
         # channel = @username if available, else full name
-        display_name  = owner_user or owner_name or "unknown"
-        channel       = f"@{owner_user}" if owner_user else (owner_name or "Unknown")
-
-        # Follower count — try multiple field paths in priority order
-        edge_followed = (item.get("edge_followed_by") or {}).get("count", 0)
-        followers = int(
-            item.get("followersCount")
-            or edge_followed
-            or owner.get("followersCount")
-            or owner.get("followers")
-            or 0
-        )
+        display_name = owner_user or owner_name or "unknown"
+        channel      = f"@{owner_user}" if owner_user else (owner_name or "Unknown")
 
         hashtags  = item.get("hashtags") or []
         shortcode = _extract_shortcode(url)
+
+        # ── Second call: fetch follower count from profile details ────────────
+        # The post/reel response does not include followersCount; we need a
+        # separate profile-details request using the extracted username.
+        followers = await _fetch_apify_profile_followers(owner_user, token)
 
         result = {
             "title":                  f"Instagram Reel by @{display_name}",
@@ -138,7 +177,7 @@ async def _fetch_apify_metadata(url: str) -> dict:
         }
 
         print(
-            f"[Instagram Apify] Parsed: channel={channel!r} username=@{display_name} "
+            f"[Instagram Apify] Final: channel={channel!r} username=@{display_name} "
             f"views={view_count} likes={like_count} comments={comment_count} "
             f"followers={followers} duration={duration}s"
         )

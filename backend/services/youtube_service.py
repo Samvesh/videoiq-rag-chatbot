@@ -74,11 +74,23 @@ def _duration_str_to_seconds(duration: str) -> int:
     return 0
 
 
-# ── Layer 1: Apify youtube-scraper ────────────────────────────────────────────
+# ── URL normalisation ────────────────────────────────────────────────────────
+def _normalize_youtube_url(url: str) -> str:
+    """
+    Ensure Apify always receives a canonical https://www.youtube.com/watch?v=<id>
+    URL regardless of what the user pasted (youtu.be, shorts, embed, etc.).
+    """
+    video_id = _extract_video_id(url)
+    if video_id:
+        return f"https://www.youtube.com/watch?v={video_id}"
+    return url
+
+
+# ── Layer 1: Apify supreme_coder~youtube-transcript-scraper ───────────────────
 async def _fetch_apify_youtube(url: str) -> dict:
     """
-    Use Apify's apify/youtube-scraper actor to fetch metadata + transcript.
-    Cloud-safe: Apify runs the scrape on its own residential proxies.
+    Use Apify's supreme_coder/youtube-transcript-scraper actor to fetch
+    metadata + transcript.  Cloud-safe: Apify runs on its own proxies.
     Returns empty dict if APIFY_TOKEN is not set or the call fails.
     """
     token = _clean_key("APIFY_TOKEN")
@@ -86,8 +98,13 @@ async def _fetch_apify_youtube(url: str) -> dict:
         print("[YouTube Apify] APIFY_TOKEN not set; skipping Apify layer.")
         return {}
 
+    # Always send the canonical watch URL — short/embed URLs cause invalid-input
+    canonical_url = _normalize_youtube_url(url)
+    if canonical_url != url:
+        print(f"[YouTube Apify] Normalised URL: {url!r} → {canonical_url!r}")
+
     run_input = {
-        "urls": [url],
+        "urls": [canonical_url],
     }
 
     print(f"[YouTube Apify] Starting actor run for url={url}")
