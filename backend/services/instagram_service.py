@@ -1,7 +1,7 @@
 """
 Instagram Reel data extraction — cloud-safe pipeline.
 
-Layer 1 – Apify instagram-reel-scraper (primary; residential proxies, cloud-safe)
+Layer 1 – Apify apify~instagram-scraper (primary; residential proxies, cloud-safe)
 Layer 2 – Graceful zeros fallback
 """
 
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _APIFY_BASE  = "https://api.apify.com/v2"
-_APIFY_ACTOR = "apify~instagram-reel-scraper"
+_APIFY_ACTOR = "apify~instagram-scraper"
 
 
 # ── Key helper ────────────────────────────────────────────────────────────────
@@ -52,7 +52,11 @@ async def _fetch_apify_metadata(url: str) -> dict:
             resp = await client.post(
                 f"{_APIFY_BASE}/acts/{_APIFY_ACTOR}/run-sync-get-dataset-items",
                 headers={"Authorization": f"Bearer {token}"},
-                json={"directUrls": [url], "resultsLimit": 1},
+                json={
+                    "directUrls": [url],
+                    "resultsType": "posts",
+                    "resultsLimit": 1,
+                },
             )
 
         print(
@@ -69,27 +73,30 @@ async def _fetch_apify_metadata(url: str) -> dict:
             print("[Instagram Apify] Empty dataset returned.")
             return {}
 
-        item    = items[0]
-        owner   = item.get("ownerUser") or {}
-        caption = item.get("caption") or item.get("text") or ""
+        item         = items[0]
+        owner        = item.get("ownerUser") or {}
+        caption      = item.get("caption") or item.get("text") or ""
 
-        view_count   = int(item.get("videoPlayCount") or item.get("videoViewCount") or 0)
-        like_count   = int(item.get("likesCount") or item.get("likes") or 0)
+        # Field mapping for apify~instagram-scraper
+        view_count    = int(item.get("videoPlayCount") or item.get("videoViewCount") or 0)
+        like_count    = int(item.get("likesCount") or item.get("likes") or 0)
         comment_count = int(item.get("commentsCount") or item.get("comments") or 0)
-        duration     = int(item.get("videoDuration") or 0)
-        upload_date  = item.get("timestamp") or item.get("date") or ""
-        channel      = (
-            item.get("ownerFullName")
-            or owner.get("fullName")
-            or owner.get("username")
-            or "Unknown"
+        duration      = int(item.get("videoDuration") or 0)
+        upload_date   = item.get("timestamp") or item.get("date") or ""
+        owner_name    = item.get("ownerFullName") or owner.get("fullName") or ""
+        owner_user    = item.get("ownerUsername") or owner.get("username") or ""
+        channel       = owner_name or owner_user or "Unknown"
+        display_name  = owner_user or owner_name or "Creator"
+        followers     = int(
+            item.get("followersCount")
+            or owner.get("followersCount")
+            or 0
         )
-        followers    = int(owner.get("followersCount") or item.get("followersCount") or 0)
-        hashtags     = item.get("hashtags") or []
-        shortcode    = _extract_shortcode(url)
+        hashtags      = item.get("hashtags") or []
+        shortcode     = _extract_shortcode(url)
 
         result = {
-            "title":                  f"Instagram Reel by {channel}",
+            "title":                  f"Instagram Reel by @{display_name}",
             "view_count":             view_count,
             "like_count":             like_count,
             "comment_count":          comment_count,
@@ -106,7 +113,7 @@ async def _fetch_apify_metadata(url: str) -> dict:
         }
 
         print(
-            f"[Instagram Apify] Parsed: channel={channel!r} "
+            f"[Instagram Apify] Parsed: channel={channel!r} username=@{display_name} "
             f"views={view_count} likes={like_count} comments={comment_count} "
             f"followers={followers} duration={duration}s"
         )

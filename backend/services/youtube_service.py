@@ -1,7 +1,7 @@
 """
 YouTube data extraction — cloud-safe pipeline.
 
-Layer 1 – Metadata + Transcript: Apify youtube-scraper actor (primary; cloud-safe)
+Layer 1 – Metadata + Transcript: Apify supreme_coder~youtube-transcript-scraper (primary; cloud-safe)
 Layer 2 – Metadata:              YouTube Data API v3 (official, zero bot-detection)
 Layer 3 – Transcript:            Gemini video understanding (fallback; accepts YouTube URLs)
 Layer 4 – Fallback:              Title + description text from YouTube API
@@ -20,7 +20,7 @@ _YT_API_BASE        = "https://www.googleapis.com/youtube/v3"
 _GEMINI_BASE        = "https://generativelanguage.googleapis.com/v1beta/models"
 _GEMINI_VIDEO_MODEL = "gemini-2.0-flash"   # confirmed available; supports YouTube URLs
 _APIFY_BASE         = "https://api.apify.com/v2"
-_APIFY_ACTOR        = "apify~youtube-scraper"
+_APIFY_ACTOR        = "supreme_coder~youtube-transcript-scraper"
 
 
 # ── Key helpers ───────────────────────────────────────────────────────────────
@@ -87,9 +87,7 @@ async def _fetch_apify_youtube(url: str) -> dict:
         return {}
 
     run_input = {
-        "startUrls": [{"url": url}],
-        "maxResults": 1,
-        "includeTranscript": True,
+        "urls": [url],
     }
 
     print(f"[YouTube Apify] Starting actor run for url={url}")
@@ -118,10 +116,11 @@ async def _fetch_apify_youtube(url: str) -> dict:
         item = items[0]
 
         # ── Extract transcript ────────────────────────────────────────────────
+        # supreme_coder~youtube-transcript-scraper returns transcript as plain text
         transcript = ""
-        raw_transcript = item.get("transcript") or item.get("subtitles") or []
+        raw_transcript = item.get("transcript") or item.get("subtitles") or ""
         if isinstance(raw_transcript, list):
-            # Each entry may be {"text": "...", "start": ..., "duration": ...}
+            # Segment list: [{"text": "...", "start": ..., "duration": ...}]
             transcript = " ".join(
                 seg.get("text", "") for seg in raw_transcript if seg.get("text")
             ).strip()
@@ -129,19 +128,29 @@ async def _fetch_apify_youtube(url: str) -> dict:
             transcript = raw_transcript.strip()
 
         # ── Extract metrics ───────────────────────────────────────────────────
-        view_count       = int(item.get("viewCount") or item.get("views") or 0)
-        like_count       = int(item.get("likes") or item.get("likeCount") or 0)
-        comment_count    = int(item.get("commentsCount") or item.get("commentCount") or 0)
-        duration_raw     = item.get("duration") or ""
-        duration_secs    = _duration_str_to_seconds(str(duration_raw)) if isinstance(duration_raw, str) else int(duration_raw or 0)
-        channel_name     = item.get("channelName") or item.get("channel") or "Unknown Channel"
-        subscribers_raw  = item.get("channelSubscriberCount") or item.get("numberOfSubscribers") or 0
-        subscribers      = int(str(subscribers_raw).replace(",", "").replace("K", "000").replace("M", "000000")) if isinstance(subscribers_raw, str) and subscribers_raw else int(subscribers_raw or 0)
-        title            = item.get("title") or "YouTube Video"
-        description      = item.get("description") or item.get("text") or ""
-        upload_date      = (item.get("date") or item.get("uploadDate") or "")[:10].replace("-", "")
-        tags             = item.get("tags") or []
-        video_id         = _extract_video_id(url) or item.get("id") or ""
+        view_count      = int(item.get("viewCount") or item.get("views") or 0)
+        like_count      = int(item.get("likes") or item.get("likeCount") or 0)
+        comment_count   = int(item.get("commentsCount") or item.get("commentCount") or 0)
+        duration_raw    = item.get("duration") or ""
+        duration_secs   = _duration_str_to_seconds(str(duration_raw)) if isinstance(duration_raw, str) else int(duration_raw or 0)
+        channel_name    = item.get("channelName") or item.get("author") or item.get("channel") or "Unknown Channel"
+        subscribers_raw = item.get("channelSubscriberCount") or item.get("subscriberCount") or item.get("numberOfSubscribers") or 0
+        if isinstance(subscribers_raw, str) and subscribers_raw:
+            # Handle "1.2M", "450K", "1,234,567" formats
+            s = subscribers_raw.replace(",", "").strip()
+            if s.endswith("M"):
+                subscribers = int(float(s[:-1]) * 1_000_000)
+            elif s.endswith("K"):
+                subscribers = int(float(s[:-1]) * 1_000)
+            else:
+                subscribers = int(s) if s.isdigit() else 0
+        else:
+            subscribers = int(subscribers_raw or 0)
+        title       = item.get("title") or "YouTube Video"
+        description = item.get("description") or item.get("text") or ""
+        upload_date = (item.get("date") or item.get("uploadDate") or item.get("publishedAt") or "")[:10].replace("-", "")
+        tags        = item.get("tags") or []
+        video_id    = _extract_video_id(url) or item.get("id") or item.get("videoId") or ""
 
         result = {
             "title":                    title,
