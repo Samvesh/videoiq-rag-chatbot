@@ -1,10 +1,10 @@
 """
 YouTube data extraction — cloud-safe pipeline.
 
-Layer 1 – Metadata:   YouTube Data API v3 (official, zero bot-detection)
-Layer 2 – Transcript: youtube-transcript-api (fast; works for captioned videos)
-Layer 3 – Transcript: Gemini video understanding (fallback; accepts YouTube URLs directly)
-Layer 4 – Fallback:   Title + description text from YouTube API
+Layer 1 – Metadata + Transcript: Apify youtube-scraper actor (primary; cloud-safe)
+Layer 2 – Metadata:              YouTube Data API v3 (official, zero bot-detection)
+Layer 3 – Transcript:            Gemini video understanding (fallback; accepts YouTube URLs)
+Layer 4 – Fallback:              Title + description text from YouTube API
 """
 
 import os
@@ -16,9 +16,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-_YT_API_BASE   = "https://www.googleapis.com/youtube/v3"
-_GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta/models"
+_YT_API_BASE        = "https://www.googleapis.com/youtube/v3"
+_GEMINI_BASE        = "https://generativelanguage.googleapis.com/v1beta/models"
 _GEMINI_VIDEO_MODEL = "gemini-2.0-flash"   # confirmed available; supports YouTube URLs
+_APIFY_BASE         = "https://api.apify.com/v2"
+_APIFY_ACTOR        = "apify~youtube-scraper"
 
 
 # ── Key helpers ───────────────────────────────────────────────────────────────
@@ -54,12 +56,127 @@ def _parse_iso_duration(iso: str) -> int:
     return int(m.group(1) or 0) * 3600 + int(m.group(2) or 0) * 60 + int(m.group(3) or 0)
 
 
-# ── Layer 1: Metadata via YouTube Data API v3 ─────────────────────────────────
+def _duration_str_to_seconds(duration: str) -> int:
+    """Convert HH:MM:SS or MM:SS string to total seconds."""
+    if not duration:
+        return 0
+    parts = duration.strip().split(":")
+    try:
+        parts = [int(p) for p in parts]
+        if len(parts) == 3:
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        elif len(parts) == 2:
+            return parts[0] * 60 + parts[1]
+        elif len(parts) == 1:
+            return parts[0]
+    except (ValueError, TypeError):
+        pass
+    return 0
+
+
+# ── Layer 1: Apify youtube-scraper ────────────────────────────────────────────
+async def _fetch_apify_youtube(url: str) -> dict:
+    """
+    Use Apify's apify/youtube-scraper actor to fetch metadata + transcript.
+    Cloud-safe: Apify runs the scrape on its own residential proxies.
+    Returns empty dict if APIFY_TOKEN is not set or the call fails.
+    """
+    token = _clean_key("APIFY_TOKEN")
+    if not token:
+        print("[YouTube Apify] APIFY_TOKEN not set; skipping Apify layer.")
+        return {}
+
+    run_input = {
+        "startUrls": [{"url": url}],
+        "maxResults": 1,
+        "includeTranscript": True,
+    }
+
+    print(f"[YouTube Apify] Starting actor run for url={url}")
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{_APIFY_BASE}/acts/{_APIFY_ACTOR}/run-sync-get-dataset-items",
+                headers={"Authorization": f"Bearer {token}"},
+                json=run_input,
+            )
+
+        print(
+            f"[YouTube Apify] Response status={resp.status_code} "
+            f"body_preview={resp.text[:600]}"
+        )
+
+        if resp.status_code not in (200, 201):
+            print(f"[YouTube Apify] Non-200 response: {resp.status_code}")
+            return {}
+
+        items = resp.json()
+        if not items or not isinstance(items, list):
+            print("[YouTube Apify] Empty dataset returned.")
+            return {}
+
+        item = items[0]
+
+        # ── Extract transcript ────────────────────────────────────────────────
+        transcript = ""
+        raw_transcript = item.get("transcript") or item.get("subtitles") or []
+        if isinstance(raw_transcript, list):
+            # Each entry may be {"text": "...", "start": ..., "duration": ...}
+            transcript = " ".join(
+                seg.get("text", "") for seg in raw_transcript if seg.get("text")
+            ).strip()
+        elif isinstance(raw_transcript, str):
+            transcript = raw_transcript.strip()
+
+        # ── Extract metrics ───────────────────────────────────────────────────
+        view_count       = int(item.get("viewCount") or item.get("views") or 0)
+        like_count       = int(item.get("likes") or item.get("likeCount") or 0)
+        comment_count    = int(item.get("commentsCount") or item.get("commentCount") or 0)
+        duration_raw     = item.get("duration") or ""
+        duration_secs    = _duration_str_to_seconds(str(duration_raw)) if isinstance(duration_raw, str) else int(duration_raw or 0)
+        channel_name     = item.get("channelName") or item.get("channel") or "Unknown Channel"
+        subscribers_raw  = item.get("channelSubscriberCount") or item.get("numberOfSubscribers") or 0
+        subscribers      = int(str(subscribers_raw).replace(",", "").replace("K", "000").replace("M", "000000")) if isinstance(subscribers_raw, str) and subscribers_raw else int(subscribers_raw or 0)
+        title            = item.get("title") or "YouTube Video"
+        description      = item.get("description") or item.get("text") or ""
+        upload_date      = (item.get("date") or item.get("uploadDate") or "")[:10].replace("-", "")
+        tags             = item.get("tags") or []
+        video_id         = _extract_video_id(url) or item.get("id") or ""
+
+        result = {
+            "title":                    title,
+            "description":              description,
+            "view_count":               view_count,
+            "like_count":               like_count,
+            "comment_count":            comment_count,
+            "duration":                 duration_secs,
+            "upload_date":              upload_date,
+            "channel":                  channel_name,
+            "channel_subscriber_count": subscribers,
+            "tags":                     tags,
+            "video_id":                 video_id,
+            "url":                      url,
+            "transcript":               transcript,
+            "source":                   "apify",
+        }
+
+        print(
+            f"[YouTube Apify] Parsed: title={title!r} channel={channel_name!r} "
+            f"views={view_count} likes={like_count} comments={comment_count} "
+            f"duration={duration_secs}s transcript_len={len(transcript)}"
+        )
+        return result
+
+    except Exception as exc:
+        print(f"[YouTube Apify] Exception: {exc}")
+        return {}
+
+
+# ── Layer 2: Metadata via YouTube Data API v3 ─────────────────────────────────
 async def _fetch_youtube_api_metadata(video_id: str) -> dict:
     """
     Call the official YouTube Data API v3.
     Returns empty dict if YOUTUBE_API_KEY is not set or the call fails.
-    Get a free key at: https://console.cloud.google.com → Enable 'YouTube Data API v3'
     """
     api_key = _clean_key("YOUTUBE_API_KEY")
     if not api_key:
@@ -68,7 +185,6 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
-            # Video snippet + statistics + contentDetails
             print(f"[YouTube API] Fetching videos metadata for video_id={video_id}")
             resp = await client.get(
                 f"{_YT_API_BASE}/videos",
@@ -95,7 +211,6 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
             stats     = item.get("statistics", {})
             content   = item.get("contentDetails", {})
 
-            # Optional: fetch subscriber count
             channel_id  = snippet.get("channelId", "")
             subscribers = 0
             if channel_id:
@@ -147,30 +262,11 @@ async def _fetch_youtube_api_metadata(video_id: str) -> dict:
             return {}
 
 
-# ── Layer 2: Transcript via youtube-transcript-api ────────────────────────────
-def _fetch_transcript_api(video_id: str) -> str:
-    """
-    Fast path — works for videos with manually uploaded captions even on cloud IPs.
-    Returns empty string if blocked or unavailable.
-    """
-    try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        ytt = YouTubeTranscriptApi()
-        snippets = ytt.fetch(video_id, languages=["en"])
-        text = " ".join(s.text for s in snippets)
-        print(f"[YouTube Service] Transcript via youtube-transcript-api: {len(text)} chars")
-        return text
-    except Exception as exc:
-        print(f"[YouTube Service] youtube-transcript-api failed: {exc}")
-        return ""
-
-
 # ── Layer 3: Transcript via Gemini video understanding ────────────────────────
 async def _fetch_transcript_gemini(video_id: str, url: str) -> str:
     """
     Gemini 2.0 Flash accepts YouTube URLs directly in fileData.fileUri.
     No cookies, no proxies — works from any IP including cloud providers.
-    Uses the same GEMINI_API_KEY already configured for embeddings.
     """
     api_key = _clean_key("GEMINI_API_KEY")
     if not api_key:
@@ -229,50 +325,55 @@ async def get_youtube_data(url: str) -> dict:
     """
     Fetch YouTube video metadata and transcript using a cloud-safe pipeline.
 
-    Metadata:   YouTube Data API v3 (official; no bot detection)
-    Transcript: youtube-transcript-api → Gemini video → title+description fallback
+    Layer 1 – Apify youtube-scraper      (primary; residential proxies, full data)
+    Layer 2 – YouTube Data API v3        (metadata fallback; official API)
+    Layer 3 – Gemini video understanding (transcript fallback; always cloud-safe)
+    Layer 4 – Title + description text   (guaranteed final fallback)
     """
     video_id = _extract_video_id(url)
     if not video_id:
         return {"error": "Unable to parse YouTube video ID from URL"}
 
-    # ── Metadata (Layer 1) ────────────────────────────────────────────────────
-    meta = await _fetch_youtube_api_metadata(video_id)
+    # ── Layer 1: Apify (primary) ──────────────────────────────────────────────
+    apify_data = await _fetch_apify_youtube(url)
 
-    if not meta:
-        # Minimal stub when YOUTUBE_API_KEY is absent
-        meta = {
-            "title":                    "YouTube Video",
-            "description":              "",
-            "view_count":               0,
-            "like_count":               0,
-            "comment_count":            0,
-            "duration":                 0,
-            "upload_date":              "",
-            "channel":                  "Unknown Channel",
-            "channel_subscriber_count": 0,
-            "tags":                     [],
-            "video_id":                 video_id,
-            "url":                      url,
-            "source":                   "fallback",
-        }
-        print(
-            "[YouTube API] Metadata fallback stub created "
-            f"for video_id={video_id}; channel='Unknown Channel', metrics=0, duration=0."
-        )
+    if apify_data:
+        # Apify returned both metadata and (possibly) transcript
+        meta       = apify_data
+        transcript = apify_data.get("transcript", "")
+    else:
+        # ── Layer 2: YouTube Data API v3 (metadata fallback) ──────────────────
+        meta       = await _fetch_youtube_api_metadata(video_id)
+        transcript = ""
 
-    # ── Transcript (Layers 2 → 3 → 4) ────────────────────────────────────────
-    loop = asyncio.get_event_loop()
+        if not meta:
+            # Minimal stub when no metadata source is available
+            meta = {
+                "title":                    "YouTube Video",
+                "description":              "",
+                "view_count":               0,
+                "like_count":               0,
+                "comment_count":            0,
+                "duration":                 0,
+                "upload_date":              "",
+                "channel":                  "Unknown Channel",
+                "channel_subscriber_count": 0,
+                "tags":                     [],
+                "video_id":                 video_id,
+                "url":                      url,
+                "source":                   "fallback",
+            }
+            print(
+                "[YouTube API] Metadata fallback stub created "
+                f"for video_id={video_id}; channel='Unknown Channel', metrics=0, duration=0."
+            )
 
-    # Layer 2: youtube-transcript-api (fast, sometimes works on cloud)
-    transcript = await loop.run_in_executor(None, lambda: _fetch_transcript_api(video_id))
-
-    # Layer 3: Gemini video understanding (always cloud-safe)
+    # ── Layer 3: Gemini transcript fallback ───────────────────────────────────
     if not transcript:
-        print(f"[YouTube Service] Falling back to Gemini video understanding for {video_id}")
+        print(f"[YouTube Service] No transcript from Apify; falling back to Gemini for {video_id}")
         transcript = await _fetch_transcript_gemini(video_id, url)
 
-    # Layer 4: Title + description (guaranteed fallback)
+    # ── Layer 4: Title + description guaranteed fallback ─────────────────────
     if not transcript:
         title       = meta.get("title") or "YouTube Video"
         description = meta.get("description") or ""
