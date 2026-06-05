@@ -117,7 +117,13 @@ export default function VideoCard({ video, label }) {
         <h3 className="text-base font-bold text-white leading-snug line-clamp-2 hover:line-clamp-none cursor-pointer mb-1" title={video.title}>
           {video.title}
         </h3>
-        
+
+        {!isYoutube && video.caption && (
+          <p className="text-xs text-gray-500 leading-snug line-clamp-2 mb-2 italic" title={video.caption}>
+            {video.caption}
+          </p>
+        )}
+
         <div className="flex items-center space-x-2 mb-4">
           <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-[#333] to-[#444] flex items-center justify-center text-xs font-semibold text-gray-300">
             {video.channel ? video.channel.charAt(0).toUpperCase() : '?'}

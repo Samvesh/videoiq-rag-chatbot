@@ -98,6 +98,7 @@ async def _ingest_impl(request: IngestRequest):
             "video_id":               str(source_id),
             "upload_date":            str(res.get("upload_date") or ""),
             "channel_follower_count": int(res.get("channel_follower_count") or res.get("channel_subscriber_count") or 0),
+            "caption":                str(res.get("caption") or ""),
         }
 
         if key == "youtube":
