@@ -77,23 +77,48 @@ async def _fetch_apify_metadata(url: str) -> dict:
         owner        = item.get("ownerUser") or {}
         caption      = item.get("caption") or item.get("text") or ""
 
+        # ── Full raw item dump — helps identify exact field names from Apify ──
+        import json as _json
+        print(f"[Instagram Apify] RAW ITEM KEYS: {list(item.keys())}")
+        print(f"[Instagram Apify] RAW ITEM: {_json.dumps(item, default=str)[:2000]}")
+        if owner:
+            print(f"[Instagram Apify] RAW ownerUser: {_json.dumps(owner, default=str)[:500]}")
+
         # Field mapping for apify~instagram-scraper
         view_count    = int(item.get("videoPlayCount") or item.get("videoViewCount") or 0)
         like_count    = int(item.get("likesCount") or item.get("likes") or 0)
         comment_count = int(item.get("commentsCount") or item.get("comments") or 0)
         duration      = int(item.get("videoDuration") or 0)
         upload_date   = item.get("timestamp") or item.get("date") or ""
-        owner_name    = item.get("ownerFullName") or owner.get("fullName") or ""
-        owner_user    = item.get("ownerUsername") or owner.get("username") or ""
-        channel       = owner_name or owner_user or "Unknown"
-        display_name  = owner_user or owner_name or "Creator"
-        followers     = int(
+
+        # Username (@handle) is preferred; fall back to full name
+        owner_user    = (
+            item.get("ownerUsername")
+            or owner.get("username")
+            or ""
+        )
+        owner_name    = (
+            item.get("ownerFullName")
+            or owner.get("fullName")
+            or owner.get("name")
+            or ""
+        )
+        # channel = @username if available, else full name
+        display_name  = owner_user or owner_name or "unknown"
+        channel       = f"@{owner_user}" if owner_user else (owner_name or "Unknown")
+
+        # Follower count — try multiple field paths in priority order
+        edge_followed = (item.get("edge_followed_by") or {}).get("count", 0)
+        followers = int(
             item.get("followersCount")
+            or edge_followed
             or owner.get("followersCount")
+            or owner.get("followers")
             or 0
         )
-        hashtags      = item.get("hashtags") or []
-        shortcode     = _extract_shortcode(url)
+
+        hashtags  = item.get("hashtags") or []
+        shortcode = _extract_shortcode(url)
 
         result = {
             "title":                  f"Instagram Reel by @{display_name}",
