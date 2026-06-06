@@ -49,7 +49,7 @@ const formatDate = (dateStr) => {
 
 export default function VideoCard({ video, label }) {
   const isYoutube = label === 'A'
-  
+
   const getEngagementBadge = (rate) => {
     if (rate >= 5.0) {
       return (
@@ -74,7 +74,7 @@ export default function VideoCard({ video, label }) {
 
   return (
     <div className={`flex-1 bg-[#1a1a1a] border border-[#222] rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden shadow-xl ${isYoutube ? 'glow-indigo hover:border-indigo-500/30' : 'glow-purple hover:border-purple-500/30'}`}>
-      
+
       {/* Label Badge */}
       <div className="flex items-center justify-between mb-4">
         <span className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-md text-white shadow-sm ${isYoutube ? 'bg-indigo-600' : 'bg-purple-600'}`}>
@@ -117,12 +117,6 @@ export default function VideoCard({ video, label }) {
         <h3 className="text-base font-bold text-white leading-snug line-clamp-2 hover:line-clamp-none cursor-pointer mb-1" title={video.title}>
           {video.title}
         </h3>
-
-        {!isYoutube && video.caption && (
-          <p className="text-xs text-gray-500 leading-snug line-clamp-2 mb-2 italic" title={video.caption}>
-            {video.caption}
-          </p>
-        )}
 
         <div className="flex items-center space-x-2 mb-4">
           <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-[#333] to-[#444] flex items-center justify-center text-xs font-semibold text-gray-300">

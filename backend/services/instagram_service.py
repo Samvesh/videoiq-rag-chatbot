@@ -160,7 +160,7 @@ async def _fetch_apify_metadata(url: str) -> dict:
         followers = await _fetch_apify_profile_followers(owner_user, token)
 
         result = {
-            "title":                  f"Instagram Reel by @{display_name}",
+            "title":                  item.get("caption") or f"Instagram Reel by @{display_name}",
             "view_count":             view_count,
             "like_count":             like_count,
             "comment_count":          comment_count,
