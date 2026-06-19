@@ -4,9 +4,518 @@
 
 /* Premium styling overrides for modern dashboard environment */
 body {
-  background-color: #0f0f0f;
-  background-image: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 600px),
-                    radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.03), transparent 600px);
+  background-color: #050505;
+  background-image: radial-gradient(circle at top right, rgba(0, 229, 255, 0.08), transparent 540px),
+                    radial-gradient(circle at bottom left, rgba(255, 46, 168, 0.06), transparent 560px);
+  overflow-x: hidden;
+}
+
+.app-shell {
+  background: #050505;
+  position: relative;
+  isolation: isolate;
+}
+
+.ambient-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambient-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 72%);
+}
+
+.landing-panel {
+  width: min(760px, 100%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.landing-kicker {
+  color: #9eefff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.landing-panel h1 {
+  color: #ffffff;
+  font-size: clamp(42px, 7vw, 76px);
+  line-height: 0.95;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow: 0 0 34px rgba(0, 229, 255, 0.22), 0 0 58px rgba(255, 46, 168, 0.14);
+}
+
+.intro-block {
+  width: min(680px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
+    rgba(12, 12, 14, 0.74);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: left;
+}
+
+.intro-block p {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.intro-points {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.intro-points span {
+  position: relative;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px 10px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 8px;
+}
+
+.intro-points span::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 16px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9eefff;
+  box-shadow: 0 0 18px rgba(158, 239, 255, 0.75);
+}
+
+.start-button {
+  min-width: 156px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, #ffffff, #d8f9ff 45%, #f4d8ff);
+  color: #050505;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  border-radius: 8px;
+  padding: 14px 28px;
+  box-shadow: 0 18px 52px rgba(0, 229, 255, 0.22), 0 0 34px rgba(255, 46, 168, 0.14);
+}
+
+.start-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 70px rgba(0, 229, 255, 0.28), 0 0 48px rgba(255, 46, 168, 0.2);
+}
+
+.logo-orb,
+.ambient-shape,
+.ambient-line {
+  position: absolute;
+  display: block;
+  opacity: 0.85;
+}
+
+.logo-orb {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 42px rgba(255, 255, 255, 0.08);
+  animation: floatSlow 5.6s ease-in-out infinite;
+}
+
+.youtube-orb {
+  left: clamp(20px, 8vw, 120px);
+  top: 25%;
+}
+
+.instagram-orb {
+  right: clamp(20px, 8vw, 120px);
+  top: 58%;
+  animation-delay: -2.3s;
+}
+
+.yt-mark {
+  position: absolute;
+  left: 25px;
+  top: 38px;
+  width: 66px;
+  height: 42px;
+  border-radius: 12px;
+  background: #ff1744;
+  box-shadow: 0 0 28px rgba(255, 23, 68, 0.72);
+}
+
+.yt-mark span {
+  position: absolute;
+  left: 27px;
+  top: 11px;
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 17px solid #fff;
+}
+
+.ig-mark {
+  position: absolute;
+  inset: 30px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffd166, #ff2ea8 48%, #7c3cff);
+  box-shadow: 0 0 30px rgba(255, 46, 168, 0.62);
+}
+
+.ig-mark::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 4px solid #fff;
+  border-radius: 13px;
+}
+
+.ig-mark::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 13px;
+  width: 7px;
+  height: 7px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.ig-mark span {
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  width: 18px;
+  height: 18px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+}
+
+.ambient-shape {
+  filter: drop-shadow(0 0 18px currentColor);
+  animation: drift 8s ease-in-out infinite;
+}
+
+.shape-circle {
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+.shape-triangle {
+  width: 0;
+  height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-bottom: 29px solid currentColor;
+  opacity: 0.32;
+}
+
+.shape-pentagon {
+  width: 34px;
+  height: 32px;
+  background: currentColor;
+  clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0 38%);
+  opacity: 0.28;
+}
+
+.shape-a {
+  color: #00e5ff;
+  width: 42px;
+  height: 42px;
+  left: 19%;
+  top: 18%;
+}
+
+.shape-b {
+  color: #ff2ea8;
+  right: 24%;
+  top: 20%;
+  animation-delay: -2s;
+}
+
+.shape-c {
+  color: #baff39;
+  width: 18px;
+  height: 18px;
+  left: 12%;
+  bottom: 20%;
+  animation-delay: -3.7s;
+}
+
+.shape-d {
+  color: #8f7cff;
+  left: 28%;
+  bottom: 12%;
+  transform: rotate(18deg);
+  animation-delay: -1.2s;
+}
+
+.shape-e {
+  color: #ffe8b8;
+  right: 16%;
+  bottom: 24%;
+  animation-delay: -4.5s;
+}
+
+.shape-f {
+  color: #ffffff;
+  width: 12px;
+  height: 12px;
+  right: 10%;
+  top: 35%;
+  opacity: 0.5;
+  animation-delay: -5.4s;
+}
+
+.ambient-line {
+  height: 1px;
+  width: 190px;
+  background: linear-gradient(90deg, transparent, rgba(158, 239, 255, 0.48), transparent);
+  transform-origin: center;
+  animation: lineHover 9s ease-in-out infinite;
+}
+
+.line-a {
+  left: 14%;
+  top: 39%;
+  transform: rotate(-19deg);
+}
+
+.line-b {
+  right: 13%;
+  bottom: 31%;
+  transform: rotate(28deg);
+  animation-delay: -3s;
+}
+
+.ambient-dashboard .ambient-shape,
+.ambient-dashboard .ambient-line {
+  opacity: 0.34;
+}
+
+.ambient-dashboard .shape-a {
+  left: 22px;
+  top: 19%;
+}
+
+.ambient-dashboard .shape-b {
+  right: 28px;
+  top: 18%;
+}
+
+.ambient-dashboard .shape-c {
+  left: 34px;
+  bottom: 16%;
+}
+
+.ambient-dashboard .shape-d {
+  left: auto;
+  right: 54px;
+  bottom: 14%;
+}
+
+.ambient-dashboard .shape-e {
+  right: 24px;
+  bottom: 43%;
+}
+
+.ambient-dashboard .shape-f {
+  left: 58px;
+  right: auto;
+  top: 48%;
+}
+
+.ambient-dashboard .line-a {
+  left: -44px;
+  top: 32%;
+}
+
+.ambient-dashboard .line-b {
+  right: -46px;
+  bottom: 28%;
+}
+
+.rag-loader-wrap {
+  min-height: calc(100vh - 104px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rag-loader {
+  min-width: min(460px, 90vw);
+  padding: 42px 34px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.075);
+  backdrop-filter: blur(24px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 24px 100px rgba(0, 0, 0, 0.42);
+}
+
+.rag-word {
+  position: relative;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: clamp(80px, 16vw, 170px);
+  line-height: 0.9;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.28);
+  animation: ragGlow 2s ease-in-out 1s infinite;
+}
+
+.rag-word::before {
+  content: "";
+  position: absolute;
+  inset: 18% 12%;
+  z-index: -1;
+  background: radial-gradient(circle, rgba(255, 246, 222, 0.55), rgba(255, 246, 222, 0.12) 38%, transparent 68%);
+  filter: blur(20px);
+  opacity: 0;
+  animation: ragBacklight 2s ease-in-out 1s infinite;
+}
+
+.rag-loading {
+  margin-top: 20px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.rag-loading span::after {
+  content: ".";
+  display: inline-block;
+  min-width: 58px;
+  text-align: left;
+  animation: loadingDots 2s steps(1, end) infinite;
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-26px); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(18px, -22px, 0) rotate(16deg); }
+}
+
+@keyframes lineHover {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.52; }
+}
+
+@keyframes ragGlow {
+  0%, 100% {
+    color: rgba(255, 255, 255, 0.64);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.18);
+  }
+  50% {
+    color: rgba(255, 255, 255, 0.82);
+    text-shadow: 0 0 24px rgba(255, 246, 222, 0.82), 0 0 58px rgba(255, 246, 222, 0.32);
+  }
+}
+
+@keyframes ragBacklight {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@keyframes loadingDots {
+  0% { content: "."; }
+  25% { content: ".  ."; }
+  50% { content: ".  .  ."; }
+  75%, 100% { content: ".  .  .  ."; }
+}
+
+@media (max-width: 900px) {
+  .logo-orb {
+    width: 82px;
+    height: 82px;
+    opacity: 0.58;
+  }
+
+  .youtube-orb {
+    left: -18px;
+    top: 18%;
+  }
+
+  .instagram-orb {
+    right: -18px;
+    top: 66%;
+  }
+
+  .yt-mark {
+    left: 18px;
+    top: 28px;
+    width: 46px;
+    height: 29px;
+    border-radius: 9px;
+  }
+
+  .yt-mark span {
+    left: 19px;
+    top: 7px;
+    border-top-width: 8px;
+    border-bottom-width: 8px;
+    border-left-width: 13px;
+  }
+
+  .ig-mark {
+    inset: 22px;
+    border-radius: 13px;
+  }
+
+  .ig-mark::before {
+    inset: 8px;
+    border-width: 3px;
+    border-radius: 10px;
+  }
+
+  .ig-mark::after {
+    right: 10px;
+    top: 9px;
+    width: 5px;
+    height: 5px;
+  }
+
+  .ig-mark span {
+    left: 17px;
+    top: 17px;
+    width: 13px;
+    height: 13px;
+    border-width: 3px;
+  }
+
+  .intro-block {
+    padding: 18px;
+  }
 }
 
 /* Custom glow borders & custom scrollbars */

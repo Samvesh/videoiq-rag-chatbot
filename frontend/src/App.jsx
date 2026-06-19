@@ -6,8 +6,70 @@ import ChatPanel from './components/ChatPanel'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
+function AmbientScene({ mode = 'landing' }) {
+  const dashboard = mode === 'dashboard'
+
+  return (
+    <div className={`ambient-scene ${dashboard ? 'ambient-dashboard' : 'ambient-landing'}`} aria-hidden="true">
+      {!dashboard && (
+        <>
+          <div className="logo-orb youtube-orb">
+            <span className="yt-mark"><span /></span>
+          </div>
+          <div className="logo-orb instagram-orb">
+            <span className="ig-mark"><span /></span>
+          </div>
+        </>
+      )}
+      <span className="ambient-shape shape-circle shape-a" />
+      <span className="ambient-shape shape-triangle shape-b" />
+      <span className="ambient-shape shape-circle shape-c" />
+      <span className="ambient-shape shape-triangle shape-d" />
+      <span className="ambient-shape shape-pentagon shape-e" />
+      <span className="ambient-shape shape-circle shape-f" />
+      <span className="ambient-line line-a" />
+      <span className="ambient-line line-b" />
+    </div>
+  )
+}
+
+function LandingIntro({ onStart }) {
+  return (
+    <section className="landing-panel">
+      <p className="landing-kicker">Creator intelligence workspace</p>
+      <h1>Video Analyzer RAG Chatbot</h1>
+      <div className="intro-block">
+        <p>
+          Compare a YouTube video and Instagram Reel through one polished analysis layer. VideoIQ reads performance
+          signals, builds a searchable RAG context, and turns raw video data into clear creator decisions.
+        </p>
+        <div className="intro-points">
+          <span>Engagement comparison across views, likes, comments, and rate.</span>
+          <span>Transcript-backed chat for hooks, pacing, topics, and content gaps.</span>
+          <span>Side-by-side video summaries that make stronger creative choices easier.</span>
+        </div>
+      </div>
+      <button type="button" onClick={onStart} className="start-button">
+        START
+      </button>
+    </section>
+  )
+}
+
+function RagLoader() {
+  return (
+    <div className="rag-loader-wrap">
+      <div className="rag-loader">
+        <div className="rag-word">RAG</div>
+        <div className="rag-loading" aria-label="Loading">LOADING<span /></div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [view, setView] = useState('input') // 'input' | 'dashboard'
+  const [showForm, setShowForm] = useState(false)
   const [videoData, setVideoData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -45,12 +107,15 @@ export default function App() {
 
   const handleReset = () => {
     setView('input')
+    setShowForm(false)
     setVideoData(null)
     setError('')
   }
 
   return (
-    <div className="min-h-screen flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans app-shell">
+      {!loading && view === 'input' && <AmbientScene mode="landing" />}
+      {!loading && view === 'dashboard' && <AmbientScene mode="dashboard" />}
       <header className="border-b border-[#222] bg-[#121212]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={handleReset}>
@@ -72,23 +137,13 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col">
-        {loading && (
-          <div className="flex-1 flex flex-col items-center justify-center py-20">
-            <div className="relative">
-              <div className="h-16 w-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
-              <div className="absolute inset-0 h-16 w-16 rounded-full border border-purple-500/10 animate-ping"></div>
-            </div>
-            <h3 className="mt-6 text-lg font-medium text-gray-200">Analyzing videos...</h3>
-            <p className="mt-2 text-sm text-gray-500 max-w-xs text-center">
-              Fetching transcripts, transcribing Instagram Reels audio with Whisper, and indexing contents...
-            </p>
-          </div>
-        )}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col relative z-10">
+        {loading && <RagLoader />}
 
         {!loading && view === 'input' && (
-          <div className="flex-1 flex items-center justify-center py-10">
-            <URLInput onSubmit={handleIngest} error={error} />
+          <div className="flex-1 flex flex-col items-center justify-center py-10 gap-6">
+            <LandingIntro onStart={() => setShowForm(true)} />
+            {showForm && <URLInput onSubmit={handleIngest} error={error} />}
           </div>
         )}
 

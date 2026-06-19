@@ -12,13 +12,13 @@ export default function URLInput({ onSubmit, error }) {
   }
 
   return (
-    <div className="w-full max-w-xl bg-[#1a1a1a] border border-[#222] p-8 rounded-2xl shadow-xl relative overflow-hidden glow-indigo">
+    <div className="w-full max-w-lg bg-[#141414]/85 border border-white/10 p-6 rounded-xl shadow-2xl relative overflow-hidden glow-indigo backdrop-blur-xl">
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-indigo-500 to-purple-500"></div>
       
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight text-white">Compare Video Performance</h2>
+      <div className="mb-5">
+        <h2 className="text-xl font-bold tracking-tight text-white">Add Video Links</h2>
         <p className="text-gray-400 text-sm mt-1">
-          Input YouTube and Instagram Reel URLs to cross-analyze transcripts, engagement metrics, and hook structures.
+          Paste one YouTube URL and one Instagram Reel URL to begin the comparison.
         </p>
       </div>
 
@@ -62,10 +62,9 @@ export default function URLInput({ onSubmit, error }) {
 
         <button
           type="submit"
-          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl py-3 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 active:transform active:scale-[0.99] transition duration-150 flex items-center justify-center space-x-2"
+          className="w-full bg-white text-black hover:bg-indigo-100 font-semibold text-sm rounded-xl py-3 shadow-lg shadow-white/10 hover:shadow-indigo-400/20 active:transform active:scale-[0.99] transition duration-150 flex items-center justify-center space-x-2"
         >
-          <span>Analyze Videos</span>
-          <span>⚡</span>
+          <span>Start Analyzing</span>
         </button>
       </form>
     </div>
