@@ -70,7 +70,7 @@ export default function ChatPanel() {
 
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
-        
+
         // Save incomplete line back to buffer
         buffer = lines.pop() || ''
 
@@ -129,7 +129,7 @@ export default function ChatPanel() {
 
   return (
     <div className="flex-1 bg-[#1a1a1a] border border-[#222] rounded-2xl flex flex-col justify-between overflow-hidden shadow-xl glow-indigo">
-      
+
       {/* Panel Header */}
       <div className="border-b border-[#222] px-4 py-3 bg-[#121212] flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -150,7 +150,7 @@ export default function ChatPanel() {
             <p className="text-xs text-gray-500 mt-1 max-w-xs text-center leading-relaxed">
               Ask deep questions comparing hooks, metrics, durations, and content structure.
             </p>
-            
+
             {/* Suggested Prompt Grids */}
             <div className="mt-6 grid grid-cols-1 gap-2 w-full max-w-sm">
               {suggestedQuestions.map((q, idx) => (
@@ -180,7 +180,7 @@ export default function ChatPanel() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  
+
                   {/* Sources Badges display */}
                   {!isUser && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-[#222] flex flex-wrap gap-1.5 items-center">
@@ -231,7 +231,7 @@ export default function ChatPanel() {
           disabled={!input.trim() || loading}
           className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-[#222] text-white disabled:text-gray-600 h-9 w-9 rounded-xl flex items-center justify-center shadow-lg transition duration-150"
         >
-          <span>🚀</span>
+          <img src="/assets/send-icon.png" alt="Send" className="h-4 w-4" />
         </button>
       </form>
     </div>

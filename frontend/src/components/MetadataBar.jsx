@@ -11,9 +11,8 @@ export default function MetadataBar({ videoA, videoB }) {
   return (
     <div className="w-full bg-[#1a1a1a] border border-[#222] rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between shadow-lg relative overflow-hidden">
       <div className="absolute top-0 left-0 bottom-0 w-[2px] bg-gradient-to-b from-indigo-500 to-purple-500"></div>
-      
-      <div className="flex items-center space-x-3 mb-3 md:mb-0 pl-2">
-        <span className="text-xl">📊</span>
+
+      <div className="mb-3 md:mb-0 pl-2">
         <div>
           <h2 className="text-sm font-bold text-white leading-none">Performance Comparison</h2>
           <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-semibold">Comparing engagement rates directly</p>
@@ -44,7 +43,7 @@ export default function MetadataBar({ videoA, videoB }) {
           </div>
         </div>
       </div>
-      
+
       {/* Short Summary Text */}
       <div className="hidden lg:block text-xs text-gray-400 font-medium">
         {winA && <span>🏆 <strong>{videoA.channel || 'Video A'}</strong> leads by <strong>{(engagementA - engagementB).toFixed(2)}%</strong> in engagement.</span>}

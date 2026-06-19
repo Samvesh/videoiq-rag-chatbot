@@ -17,7 +17,7 @@ function AmbientScene({ mode = 'landing' }) {
             <span className="yt-mark"><span /></span>
           </div>
           <div className="logo-orb instagram-orb">
-            <span className="ig-mark"><span /></span>
+            <img className="ig-logo-img" src="/assets/instagram-logo.png" alt="" />
           </div>
         </>
       )}
@@ -119,9 +119,6 @@ export default function App() {
       <header className="border-b border-[#222] bg-[#121212]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={handleReset}>
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-md">
-              VIQ
-            </div>
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
               VideoIQ
             </span>
