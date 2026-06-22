@@ -62,6 +62,19 @@ function RagLoader() {
       <div className="rag-loader">
         <div className="rag-word">RAG</div>
         <div className="rag-loading" aria-label="Loading">LOADING<span /></div>
+        <div
+          className="rag-loading"
+          style={{
+            marginTop: '12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            opacity: 0.58,
+            textTransform: 'none',
+          }}
+        >
+          Please wait few minutes , we are fetching data<span />
+        </div>
       </div>
     </div>
   )
