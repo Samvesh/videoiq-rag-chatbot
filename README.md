@@ -7,7 +7,6 @@ This tool acts as our personal video optimization partne instead of jumping betw
 ---
 
 Architecture Diagram
-
 ```
                  +-----------------------------------------+
                  |            React Frontend               |
