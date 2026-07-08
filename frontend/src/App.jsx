@@ -132,7 +132,7 @@ export default function App() {
       <header className="border-b border-[#222] bg-[#121212]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={handleReset}>
-            <img src="/assets/videoiq-logo.png" alt="VideoIQ" className="h-[88px]" style={{ filter: 'invert(1) brightness(0.96)', mixBlendMode: 'screen' }} />
+            <img src="/assets/videoiq-logo.png" alt="VideoIQ" className="h-[88px] -my-7" style={{ filter: 'invert(1) brightness(0.96)', mixBlendMode: 'screen' }} />
           </div>
           {view === 'dashboard' && (
             <button
