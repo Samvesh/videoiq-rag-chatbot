@@ -62,6 +62,19 @@ function RagLoader() {
       <div className="rag-loader">
         <div className="rag-word">RAG</div>
         <div className="rag-loading" aria-label="Loading">LOADING<span /></div>
+        <div
+          className="rag-loading"
+          style={{
+            marginTop: '12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            opacity: 0.58,
+            textTransform: 'none',
+          }}
+        >
+          Please wait few minutes , we are fetching data<span />
+        </div>
       </div>
     </div>
   )
@@ -119,9 +132,7 @@ export default function App() {
       <header className="border-b border-[#222] bg-[#121212]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3 cursor-pointer" onClick={handleReset}>
-            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              VideoIQ
-            </span>
+            <img src="/assets/videoiq-logo.png" alt="VideoIQ" className="h-8" />
           </div>
           {view === 'dashboard' && (
             <button
