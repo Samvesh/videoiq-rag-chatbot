@@ -257,3 +257,4 @@ Future Improvements(not the project requirments but it can be done if needed or 
 - Multi-user session management
 - Caching layer for repeated video analysis
 - Advanced analytics dashboards
+
