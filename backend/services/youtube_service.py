@@ -18,7 +18,7 @@ load_dotenv()
 # ── Constants ─────────────────────────────────────────────────────────────────
 _YT_API_BASE        = "https://www.googleapis.com/youtube/v3"
 _GEMINI_BASE        = "https://generativelanguage.googleapis.com/v1beta/models"
-_GEMINI_VIDEO_MODEL = "gemini-2.0-flash"   # confirmed available; supports YouTube URLs
+_GEMINI_VIDEO_MODEL = "gemini-3.6-flash"   # updated from deprecated gemini-2.0-flash
 _APIFY_BASE         = "https://api.apify.com/v2"
 _APIFY_ACTOR        = "supreme_coder~youtube-transcript-scraper"
 

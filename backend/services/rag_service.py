@@ -30,7 +30,7 @@ def _get_llm():
         raw_key = raw_key.strip().strip('"').strip("'")
 
         _llm = ChatGroq(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             api_key=raw_key if raw_key else None,
         )
     return _llm
