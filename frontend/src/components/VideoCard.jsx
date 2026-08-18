@@ -132,7 +132,13 @@ export default function VideoCard({ video, label }) {
         <div className="grid grid-cols-3 gap-2 py-3 px-4 bg-[#121212] border border-[#222] rounded-xl mb-4">
           <div className="text-center">
             <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Views</p>
-            <p className="text-sm font-bold text-white mt-0.5">{formatNumber(video.view_count)}</p>
+            <p className="text-sm font-bold text-white mt-0.5">
+              {!isYoutube && video.view_count === 0 ? (
+                <span className="text-gray-500" title="Instagram restricts view count data">N/A</span>
+              ) : (
+                formatNumber(video.view_count)
+              )}
+            </p>
           </div>
           <div className="text-center border-x border-[#222]">
             <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Likes</p>

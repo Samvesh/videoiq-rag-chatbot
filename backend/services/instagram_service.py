@@ -243,7 +243,16 @@ async def get_instagram_data(url: str) -> dict:
     views    = metadata.get("view_count", 0)
     likes    = metadata.get("like_count", 0)
     comments = metadata.get("comment_count", 0)
-    engagement_rate = round((likes + comments) / views * 100, 2) if views > 0 else 0.0
+    followers = metadata.get("channel_follower_count", 0)
+
+    if views > 0:
+        engagement_rate = round((likes + comments) / views * 100, 2)
+    elif followers > 0:
+        # Views unavailable (Instagram restricts view counts from scrapers);
+        # fall back to (likes + comments) / followers as engagement proxy.
+        engagement_rate = round((likes + comments) / followers * 100, 2)
+    else:
+        engagement_rate = 0.0
 
     metadata["engagement_rate"] = engagement_rate
     metadata["transcript"]      = transcript
